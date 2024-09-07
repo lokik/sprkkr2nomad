@@ -1,0 +1,15 @@
+[project]
+name = "sprkkr2nomad"
+version = "0.0.1b"
+requires-python = ">= 3.7"
+dependencies = [
+  "ase",
+	'ase2sprkkr>=3.1.1b',
+  "asr",
+]
+authors = [
+  { name = "Matyáš Novák", email = "novakmat@fzu.cz" },
+]
+
+[project.entry-points.'nomad.plugin']
+sprkkr_parser = "ase2sprkkr.nomad.register:sprkkr_parser"
