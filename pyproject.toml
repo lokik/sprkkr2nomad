@@ -12,4 +12,4 @@ authors = [
 ]
 
 [project.entry-points.'nomad.plugin']
-sprkkr_parser = "ase2sprkkr.nomad.register:sprkkr_parser"
+sprkkr_parser = "sprkkr2nomad.register:sprkkr_parser"

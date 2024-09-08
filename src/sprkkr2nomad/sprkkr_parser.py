@@ -2,16 +2,17 @@
 from SPRKKR output files, parsed by ASE2SPRKKR """
 
 from typing import Dict
-from nomad.datamodel import EntryArchive
 import re
 import os.path
-from ..outputs.task_result import KkrProcess
-from .ase_atoms import ase_atoms_to_nomad_model_system
+from ase2sprkkr.outputs.task_result import KkrProcess
 # pip install git+https://github.com/nomad-coe/nomad-schema-plugin-simulation-workflow.git
 # from simulationworkflowschema import SinglePoint
-from nomad_simulations.schema_packages.general import Simulation, Program
-from .ase2sprkkr_to_nomad import nomad_section_from_sprkkr
+from nomad.datamodel import EntryArchive
 from nomad.parsing.parser import MatchingParser
+from nomad_simulations.schema_packages.general import Simulation, Program
+
+from .ase2sprkkr_to_nomad import nomad_section_from_sprkkr
+from .ase_atoms import ase_atoms_to_nomad_model_system
 from .input_parameters import model_method_section
 
 
