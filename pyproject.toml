@@ -4,7 +4,7 @@ version = "0.0.1b"
 requires-python = ">= 3.7"
 dependencies = [
   "ase",
-	'ase2sprkkr>=3.1.1b',
+	'ase2sprkkr>=3.1.3b',
   "asr",
 ]
 authors = [
