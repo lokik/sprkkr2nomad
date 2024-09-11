@@ -1,7 +1,7 @@
 """ Functions in this module create NOMAD data schema from
 ASE2SPRKKR input parameters """
 
-from nomad_simulations.schema_packages.model_method import ModelMethod
+from nomad_simulations.schema_packages.model_method import DFT
 from .ase2sprkkr_to_nomad import section_to_nomad
 from .class_utils import setup_class
 import sys
@@ -9,7 +9,7 @@ import types
 from ase2sprkkr.input_parameters.input_parameters import InputParameters
 
 
-class SprkkrModelMethodMeta(ModelMethod.__class__):
+class SprkkrDFTMeta(DFT.__class__):
     """ All SPRKKR model methods will have input_parameters
     property, added here. However, the properties can differ
     according to the task. This meta_class manage that the
@@ -18,18 +18,18 @@ class SprkkrModelMethodMeta(ModelMethod.__class__):
     def __new__(self, cls_name, bases, members, /, input_parameters_definition=None):
         if input_parameters_definition:
             members['input_parameters'] = section_to_nomad(input_parameters_definition)
-        cls = ModelMethod.__class__.__new__(self, cls_name, bases, members)
+        cls = DFT.__class__.__new__(self, cls_name, bases, members)
         return cls
 
     def __call__(self, *args, **kwargs):
         if not hasattr(self, 'input_parameters'):
-            raise NotImplementedError("SprkkrModelMethod have to have InputParameters specified")
+            raise NotImplementedError("SprkkrDFT have to have InputParameters specified")
         return super().__call__(*args, **kwargs)
 
 
-class SprkkrModelMethod(ModelMethod, metaclass=SprkkrModelMethodMeta):
+class SprkkrDFT(DFT, metaclass=SprkkrDFTMeta):
      """ SPRKKR model method has additional input_parameters property.
-     Meta class :class:`SprkkrModelMethodMeta` add them to the descendants
+     Meta class :class:`SprkkrDFTMeta` add them to the descendants
      of the class """
 
 
@@ -37,7 +37,7 @@ def model_method_name(task):
     """ Return the name of the NOMAD section for a given
     input parameters """
     name = task.capitalize()
-    return f'Sprkkr{name}ModelMethod'
+    return f'Sprkkr{name}DFT'
 
 
 def model_method_section(task):
@@ -56,7 +56,7 @@ def create_model_class(input_parameters_definition):
     name = input_parameters_definition.name
     cls = types.new_class(
            model_method_name(name),
-           (SprkkrModelMethod, ),
+           (SprkkrDFT, ),
            { 'input_parameters_definition' : input_parameters_definition }
     )
     return setup_class(
@@ -78,8 +78,8 @@ class InputParametersModule(types.ModuleType):
 
     def __getattr__(self, name):
         # Dynamically create the definitions as they are needed
-        if name.startswith("Sprkkr") and name.endswith("ModelMethod"):
-            task_name = name[6:-11]
+        if name.startswith("Sprkkr") and name.endswith("DFT"):
+            task_name = name[6:-3]
             out = create_model_class(task_name)
             globals()[out.__name__] = out
             return out
