@@ -8,15 +8,28 @@ from ase2sprkkr import TaskResult, InputParameters
 # from simulationworkflowschema import SinglePoint
 from nomad.datamodel import EntryArchive
 from nomad.parsing.parser import MatchingParser
+from nomad.metainfo import Quantity
+from ase.units import Rydberg, eV
 from nomad_simulations.schema_packages.general import Simulation, Program
 from nomad_simulations.schema_packages.outputs import Outputs, SCFOutputs
 from nomad_simulations.schema_packages.model_method import XCFunctional
-from nomad_simulations.schema_packages.properties import FermiLevel, TotalEnergy
+from nomad_simulations.schema_packages.properties import TotalEnergy, ChemicalPotential
 from nomad_simulations.schema_packages.numerical_settings import SelfConsistency
 
 from .ase2sprkkr_to_nomad import nomad_section_from_sprkkr
 from .ase_atoms import ase_atoms_to_nomad_model_system
 from .input_parameters import model_method_section
+
+
+class SprkkrScfStep(Outputs):
+    sprkkr_iteration = Quantity(type=int)
+    sprkkr_error = Quantity(type=float)
+    sprkkr_converged = Quantity(type=bool)
+    sprkkr_energy_contour_min = Quantity(type=float, unit='joule')
+    sprkkr_semi_core_min = Quantity(type=float, unit='joule')
+    sprkkr_core_max = Quantity(type=float, unit='joule')
+    sprkkr_spin_moment = Quantity(type=float)
+    sprkkr_orbital_moment = Quantity(type=float)
 
 
 def self_consistency(ip:InputParameters):
@@ -45,7 +58,7 @@ def model_method(ip:InputParameters):
 
     xc = XCFunctional()
     xc.__class__.libxc_name =property(lambda self: self.__dict__['_libxc_name'])
-    xc.__class__.libxc_name =xc.__class__.libxc_name.setter(lambda self, v: (breakpoint() or self.__dict__.__setitem__('_libxc_name', v)))
+    xc.__class__.libxc_name =xc.__class__.libxc_name.setter(lambda self, v: self.__dict__.__setitem__('_libxc_name', v))
     xc.name = 'hybrid'
     xc.libxc_name = VXC.libxc_name()
 
@@ -84,19 +97,41 @@ def scf_outputs(output, system):
 
     def set_scf_step(step, iteration):
         step.model_system_ref = system
-        fl = FermiLevel()
+        """fl = FermiLevel()
         fl.value = iteration.energy.EF()
         fl.is_scf_converged = iteration.converged()
-        step.fermi_levels.append(fl)
+        step.fermi_levels.append(fl)"""
 
         te = TotalEnergy()
         te.value = iteration.energy.ETOT()
         te.is_scf_converged = iteration.converged()
-        step.total_energies.append(fl)
+        step.total_energies.append(te)
+
+        if hasattr(step, 'sprkkr_iteration'):
+            step.sprkkr_iteration = iteration.iteration()
+            step.sprkkr_error = iteration.error()
+            step.sprkkr_converged = iteration.converged()
+            cp = ChemicalPotential()
+            cp.type = 'electronic'
+            cp.fermi_energy = iteration.energy.EF() * Rydberg * eV
+            step.chemical_potentials.append(cp)
+            step.sprkkr_energy_contour_min = iteration.energy.EMIN() * Rydberg * eV
+            step.sprkkr_semi_core_min = (
+                iteration.energy.ESCBOT() * Rydberg * eV
+                if hasattr(iteration.energy, 'ESCBOT')
+                else None
+            )
+            step.sprkkr_core_max = (
+                iteration.energy.ECTOP() * Rydberg * eV
+                if hasattr(iteration.energy, 'ECTOP')
+                else None
+            )
+            step.sprkkr_spin_moment = iteration.moment.spin()
+            step.sprkkr_orbital_moment = iteration.moment.orbital()
 
     set_scf_step(nomad, output.iterations[-1])
     for i in output.iterations:
-        scf_step = Outputs()
+        scf_step = SprkkrScfStep()
         set_scf_step(scf_step, i)
         nomad.scf_steps.append(scf_step)
 
@@ -114,7 +149,6 @@ def simulation(output):
     if output.input_parameters.name == 'scf':
         simulation.outputs.append(scf_outputs(output, system))
     return simulation
-
 
 class SprkkrParser(MatchingParser):
 

@@ -1,0 +1,327 @@
+schema_package: sprkkr_jxc
+sections:
+  SprkkrJxcJxcControl:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'CONTROL'
+    quantities:
+      DATASET:
+        type:
+          type_kind: string
+      ADSI:
+        type:
+          type_kind: string
+        enum:
+        - JXC
+        default: JXC
+      POTFIL:
+        type:
+          type_kind: string
+      KRWS:
+        type:
+          type_kind: int
+        min_value: 0
+        max_value: 1
+        default: 1
+      KRMT:
+        type:
+          type_kind: string
+        enum:
+        - '0'
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+        - '5'
+        - '6'
+        description: "Possible values:\n  0         RMT is taken from the potential\
+          \ file\n  1         RMT = min( x*RWS )\n  2         RMT = min( d_ij / 2\
+          \ )\n  3         RMT from atomic charge density (=> KRWS=1)\n  4       \
+          \  RMT from atomic Hartree potential (=> KRWS=1)\n  5         RMT from total\
+          \ atomic potential (=> KRWS=1)\n  6         take average of 3 and 4 (=>\
+          \ KRWS=1)"
+      PRINT:
+        type:
+          type_kind: int
+        min_value: 0
+        max_value: 5
+        default: 0
+      NONMAG:
+        type:
+          type_kind: bool
+        optional: true
+        default_if_missing: true
+        default: false
+      NOHFF:
+        type:
+          type_kind: bool
+        optional: true
+        default_if_missing: true
+        default: false
+      NOSYM:
+        type:
+          type_kind: bool
+        optional: true
+        default_if_missing: true
+        default: false
+  SprkkrJxcJxcTau:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'TAU'
+    quantities:
+      BZINT:
+        type:
+          type_kind: string
+        enum:
+        - POINTS
+        - WEYL
+        - CLUSTER
+        description: 'The Weyl method (BZINT=WEYL) is a point sampling method using
+          more or less ran-
+
+          dom points. The number of k-points used for the integration varies quadratically
+          be-
+
+          tween 0.0 and ImE according to the imaginary part of the energy.
+
+
+          The special point method (BZINT=POINTS) uses a regular k-point grid with
+          NKTAB
+
+          points. It is the standard method and gives a good compromise concerning
+          accuracy
+
+          and efficiency. For BZINT=POINTS the parameter NKTAB will be adjusted to
+          allow a
+
+          regular mesh.'
+      NKTAB:
+        type:
+          type_kind: int
+        default: 250
+        description: For 2D problem, it serves only as default value for NKTABxD.
+      NKTAB2D:
+        type:
+          type_kind: int
+        description: If it is not specified, NKTAB is used.
+      NKTAB3D:
+        type:
+          type_kind: int
+        description: If it is not specified, NKTAB is used
+      NKMIN:
+        type:
+          type_kind: int
+        default: 300
+      NKMAX:
+        type:
+          type_kind: int
+        default: 500
+      CLUSTER:
+        type:
+          type_kind: bool
+        optional: true
+        default_if_missing: true
+        default: false
+        description: "Cluster type calculation calculate \u03C4 by inverting the real\
+          \ space KKR matrix. Specify cluster center using IQCNTR or ITCNTR and its\
+          \ size using NSHLCLU or CLURAD."
+      NSHLCLU:
+        type:
+          type_kind: int
+      CLURAD:
+        type:
+          type_kind: float
+      IQCNTR:
+        type:
+          type_kind: string
+      ITCNTR:
+        type:
+          type_kind: string
+      NLOUT:
+        type:
+          type_kind: int
+        default: 3
+      MOL:
+        type:
+          type_kind: bool
+        optional: true
+        default_if_missing: true
+        default: false
+      KKRMODE:
+        type:
+          type_kind: string
+        enum:
+        - STANDARD-KKR
+        - TB-KKR
+        - LAYER-KKR
+  SprkkrJxcJxcMode:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'MODE'
+    quantities:
+      MODE:
+        type:
+          type_kind: string
+        enum:
+        - NREL
+        - SREL
+        - SP-SREL
+        description: "Possible values:\n  NREL      work in the nonrelativistic mode\n\
+          \  SREL      work in the scalar-relativistic mode\n  SP-SREL   work in the\
+          \ spin-polarized scalar-relativistic mode"
+      LLOYD:
+        type:
+          type_kind: bool
+        optional: true
+        default_if_missing: true
+        default: false
+      MDIR:
+        type:
+          type_kind: float
+        shape:
+        - 3
+        repeated_dict: true
+      MALF:
+        type:
+          type_kind: float
+        description: If it is not set, angle of MDIR is used
+      MBET:
+        type:
+          type_kind: float
+        description: If it is not set, angle of MDIR is used
+      MGAM:
+        type:
+          type_kind: float
+      C:
+        type:
+          type_kind: float
+        repeated_dict: true
+        default: 1.0
+      SOC:
+        type:
+          type_kind: float
+        repeated_dict: true
+        default: 1.0
+  SprkkrJxcJxcStrconst:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'STRCONST'
+    quantities:
+      ETA:
+        type:
+          type_kind: float
+      RMAX:
+        type:
+          type_kind: float
+      GMAX:
+        type:
+          type_kind: float
+  SprkkrJxcJxcEnergy:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'ENERGY'
+    quantities:
+      GRID:
+        type:
+          type_kind: int
+        repeated: true
+        default:
+        - 5
+        description: "0    only real energies -- Gauss integration mesh\n   1    only\
+          \ real energies -- equidistant path\n   2    rectangular complex path\n\
+          \   3    straight complex path parallel to real axis\n   4    rectangular\
+          \ complex grid, return to real axis on log scale\n   5    arc in the complex\
+          \ plain\n   6    standard X-ray mesh from E_Fermi to 3.5 Ry\n   7    X-ray\
+          \ mesh\n   8    arc in the complex plane (logarithim)\n   9    arc in the\
+          \ complex plane (Akai's scheme)\n  10    ellipse in the complex plain\n\
+          \  11    semi circle (5) plus straight line (3)"
+      NE:
+        type:
+          type_kind: int
+        repeated: true
+        default:
+        - 32
+      ImE:
+        type:
+          type_kind: float
+        unit: Ry
+        allowed_units:
+        - Ry
+        - eV
+        default: 0.0
+      EMIN:
+        type:
+          type_kind: float
+      EMINEV:
+        type:
+          type_kind: float
+  SprkkrJxcJxcTask:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'TASK'
+    quantities:
+      TASK:
+        type:
+          type_kind: string
+        enum:
+        - JXC
+        default: JXC
+      CLURAD:
+        type:
+          type_kind: float
+        default: 2.2
+  SprkkrJxcJxcSites:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'SITES'
+    quantities:
+      NL:
+        type:
+          type_kind: int
+        repeated: true
+        default:
+        - 3
+        description: 'The KKR-method is a minimum basis set method. This means that
+          the angular-momentum
+
+          expansion can be chosen according to the atomic properties of the atomic
+          types. For tran-
+
+          sition metals it is therefore normally sufficient to have a maximum l-value
+          of 2 (NL = 3).
+
+          For systems with many atoms per unit cell it is in principle possible to
+          set the l-expansion
+
+          according to the atom types on the lattice sites. For US having the NaCl-structure
+          one could
+
+          choose NL = 4 for the U-site and NL = 2 for the S-site. At the moment this
+          possibility, that
+
+          would save storage and computer time, is not supported by all subroutines.
+          For this rea-
+
+          son a common l-expansion cutoff is used, that is fixed by the highest that
+          occurs. For US
+
+          this implies that NL = 4 is used for all sites.'
+  SprkkrJxcJxc:
+    base_section: nomad.datamodel.metainfo.basesections.EntryData
+    description: Auto-generated SPRKKR section 'jxc'
+    quantities: {}
+    sub_sections:
+      CONTROL:
+        section: SprkkrJxcJxcControl
+        repeats: false
+      TAU:
+        section: SprkkrJxcJxcTau
+        repeats: false
+      MODE:
+        section: SprkkrJxcJxcMode
+        repeats: false
+      STRCONST:
+        section: SprkkrJxcJxcStrconst
+        repeats: false
+      ENERGY:
+        section: SprkkrJxcJxcEnergy
+        repeats: false
+      TASK:
+        section: SprkkrJxcJxcTask
+        repeats: false
+      SITES:
+        section: SprkkrJxcJxcSites
+        repeats: false

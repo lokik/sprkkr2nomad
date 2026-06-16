@@ -50,7 +50,7 @@ def model_method_section(task):
 def create_model_class(input_parameters_definition):
     """ Create NOMAD section for given ASE2SPRKKR input_parameters_definition class """
     if isinstance(input_parameters_definition, str):
-        input_parameters_definition = InputParameters.task_definition(
+        input_parameters_definition = InputParameters.definition(
             input_parameters_definition
         )
     name = input_parameters_definition.name

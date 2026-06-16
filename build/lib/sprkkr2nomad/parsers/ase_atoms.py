@@ -48,8 +48,8 @@ def ase_atoms_to_nomad_symmetry(atoms, pointing_to):
     # it do not takes at account SPRKKR 'extras'
     SPRKKRAtoms.promote_ase_atoms(atoms)
     symmetry.bravais_lattice = atoms.cell.get_bravais_lattice().pearson_symbol
-    atoms.space_group_number = atoms.spacegroup_info.number()
-    symmetry.space_group_symbol = atoms.spacegroup_info.dataset['pointgroup']
+    atoms.space_group_number = atoms.spacegroup_info.spacegroup_number()
+    symmetry.space_group_symbol = atoms.spacegroup_info.dataset.pointgroup
     if pointing_to:
         symmetry.atomic_cell_ref = pointing_to
     return symmetry
@@ -78,7 +78,7 @@ def ase_atoms_to_nomad_atomic_cell(atoms):
                     for symbol, chance in occ[i].items():
                         yield i, symbol, chance
                 else:
-                    yield i, atoms.symbol[i], 1.0
+                    yield i, atoms.symbols[i], 1.0
 
         sites = [ i for i in sites() ]
         cell.n_atoms = len(sites)
@@ -92,7 +92,7 @@ def ase_atoms_to_nomad_atomic_cell(atoms):
         cell.positions = distribute(atoms.positions)
         if atoms.__class__.__name__ == 'SPRKKRAtoms':
             cell.equivalent_atoms = distribute(atoms.spacegroup_info.
-                                          equivalent_sites.mapping)
+                                          equivalent_sites)
         cell.atoms_state = [ atoms_state(*atom) for atom in sites ]
     else:
         cell.n_atoms = len(atoms)

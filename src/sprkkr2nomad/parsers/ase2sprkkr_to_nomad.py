@@ -26,7 +26,7 @@ def value_to_nomad(definition):
     """ Convert a ASE2SPRKKR value definition to a NOMAD one. """
     gt = definition.type
     description = definition.description(True)
-    if definition.is_numbered_array:
+    if definition.is_repeated.is_numbered:
         section = create_class(
                         nomad_class_name(definition),
                         (ArchiveSection,),
@@ -106,18 +106,24 @@ def nomad_section_from_sprkkr(nomad_class, data):
     The class could be created e.g. by :func:`section_to_nomad`.
     """
 
-    std_getter = data.as_dict_getter('explicit')
+    # Use all values (explicit + defaults) so input_parameters are complete.
+    dct = data.to_dict() or {}
 
-    def getter(self):
-        val = std_getter(self)
-        if val is not None and self._definition.is_numbered_array:
-            val = [ { 'index' : k, 'value': v } for k,v in val.items() ]
-        return val
+    def normalize(value):
+        if isinstance(value, dict):
+            # Convert numbered repeated dicts to list of index/value pairs.
+            if value and all(isinstance(k, int) for k in value.keys()):
+                return [
+                    {'index': k, 'value': normalize(v)}
+                    for k, v in value.items()
+                ]
+            return {
+                (k.lower() if isinstance(k, str) else k): normalize(v)
+                for k, v in value.items()
+            }
+        if isinstance(value, list):
+            return [normalize(v) for v in value]
+        return value
 
-    dct = data.to_dict(getter = getter) or {}
-
-    def lcase(d):
-        return { k.lower() : lcase(v) if isinstance(v, dict) else v for k,v in d.items() }
-
-    out = nomad_class.m_from_dict( lcase(dct) )
+    out = nomad_class.m_from_dict(normalize(dct))
     return out
