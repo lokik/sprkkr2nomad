@@ -1,14 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sprkkr2nomad"
 version = "0.0.1b"
+readme = "README.md"
 requires-python = ">= 3.12"
 dependencies = [
   "ase",
-  'ase2sprkkr>=3.1.3b',
+  "ase2sprkkr>=3.5.0b0",
   "asr",
-# "nomad",
-  "nomad-parser-plugins-simulation>=1.0.3",
-  "nomad-simulations",
+  "nomad-lab>=1.4.2,<2",
+  "nomad-simulation-parsers @ git+https://github.com/FAIRmat-NFDI/nomad-parser-plugins-simulation.git@edb54cd190719c01defd87eedc1866b365f03a56",
+  "nomad-simulations>=0.10.1.dev1",
 ]
 authors = [
   { name = "Matyáš Novák", email = "novakmat@fzu.cz" },
@@ -16,3 +21,32 @@ authors = [
 
 [project.entry-points.'nomad.plugin']
 sprkkr_parser = "sprkkr2nomad.parsers:sprkkr_parser"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sprkkr2nomad = ["schemas/*.yaml"]
+
+[tool.uv.sources]
+nomad-lab = { index = "nomad" }
+
+[tool.uv]
+build-constraint-dependencies = ["wheel<0.46"]
+constraint-dependencies = ["nomad-lab==1.4.2"]
+# SPRKKR requires the newer SCFSteps schema, absent from the old parser lockfile.
+# Pin the development revision so that both parser packages share one schema.
+override-dependencies = [
+  "nomad-simulations @ git+https://github.com/FAIRmat-NFDI/nomad-simulations.git@a1ad4a6464883d554abe189ce27c28f0a7534f8d",
+]
+
+[[tool.uv.index]]
+name = "nomad"
+url = "https://gitlab.mpcdf.mpg.de/api/v4/projects/2187/packages/pypi/simple"
+explicit = true

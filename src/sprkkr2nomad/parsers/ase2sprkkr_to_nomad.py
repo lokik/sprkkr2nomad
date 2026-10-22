@@ -75,6 +75,8 @@ def definition_to_nomad(definition):
     """
     Convert a ASE2SPRKKR value/section definition to NOMAD one.
     """
+    if definition.is_hidden:
+        return None
     if isinstance(definition, ValueDefinition):
         return value_to_nomad(definition)
     return section_to_nomad(definition)

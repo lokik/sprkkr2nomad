@@ -147,7 +147,7 @@ class SprkkrTaskParser:
         if ladder:
             mm.jacobs_ladder = ladder
 
-        mm.contributions.append(self._relativity_from_potential(pot))
+        mm.relativity = self._relativity_from_potential(pot)
 
         nspin = pot['GLOBAL SYSTEM PARAMETER']['NSPIN']()
         mm.is_spin_polarized = nspin == 2
@@ -165,6 +165,10 @@ class SprkkrTaskParser:
     # ------------------------------------------------------------------
     # Orchestration
     # ------------------------------------------------------------------
+
+    def parse(self, archive):
+        """Populate an archive, allowing tasks to defer context-dependent data."""
+        archive.data = self.simulation()
 
     def simulation(self):
         sim = Simulation()

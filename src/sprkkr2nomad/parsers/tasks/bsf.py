@@ -1,147 +1,195 @@
-"""NOMAD parser for SPRKKR BSF (Bloch spectral function) output files.
+"""Map SPRKKR spectral intensities to native NOMAD Green's-function sections.
 
-Handles two SPRKKR task variants:
-  bsfek  — k-path (EK-REL) mode: A(E, k) band-structure-like spectral function
-  bsfkk  — k-k plane (CONST-E) mode: A(k1, k2) constant-energy surface
-
-The Bloch spectral function A(k, E) = -1/π Im[G^R(k, E)] is stored using
-the ElectronicGreensFunction schema section from nomad_simulations.
+The stored values retain the original parser convention: site-summed Bloch
+spectral intensities A(E,k), not reconstructed complex Green's functions.
 """
 
+import re
+import warnings
+from functools import cached_property
+from pathlib import Path
+
 import numpy as np
+from ase.units import Bohr
+from nomad.metainfo import Quantity, SubSection
 from nomad.units import ureg
+from nomad_simulations.schema_packages.numerical_settings import (
+    KMesh as KMeshSettings,
+)
+from nomad_simulations.schema_packages.numerical_settings import (
+    KSpace,
+    Mesh,
+    NumericalSettings,
+)
 from nomad_simulations.schema_packages.outputs import Outputs
 from nomad_simulations.schema_packages.properties import ElectronicGreensFunction
-from nomad_simulations.schema_packages.variables import KMesh, Frequency
+from nomad_simulations.schema_packages.variables import Frequency, KMesh
 
+from ...local_hdf5 import write_datasets
 from .base import SprkkrTaskParser
 
 
+class BsfSampling(NumericalSettings):
+    """Preserve the original path distance or plane parameters alongside 3D k points."""
+
+    parameters = SubSection(sub_section=Mesh.m_def)
+    segment_labels = Quantity(type=str, shape=['*'])
+    segment_end_indices = Quantity(
+        type=np.int32, shape=['*'],
+        description='One-based segment end indices from the BSF file (INDKDIR).',
+    )
+
+
 class SprkkrBsfParser(SprkkrTaskParser, task_name='bsfek'):
-    """Parser for BSF tasks (bsfek = k-path; bsfkk = k-k plane)."""
+    """Read path (bsfek) and constant-energy plane (bsfkk) calculations."""
+
+    def parse(self, archive):
+        self._datasets = []
+        super().parse(archive)
+        # HDF5Dataset requires the archive context and final section paths.
+        write_datasets(archive, self._datasets)
+
+    @cached_property
+    def sampling(self):
+        bsf = self.output.bsf
+        if bsf.MODE() == 'EK-REL':
+            parameters = BsfSampling(
+                name='SPRKKR BSF path distance (2*pi/a)',
+                parameters=Mesh(
+                    dimensionality=1, n_points=bsf.NK(),
+                    points=np.asarray(bsf.K())[:, None],
+                ),
+                segment_labels=bsf.LBLKDIR(),
+                segment_end_indices=bsf.INDKDIR(),
+            )
+            points = self._path_points(bsf)
+            if points is None:
+                warnings.warn(
+                    'BSF path segments do not match the SPRKKR output; '
+                    'preserving path distances without inventing 3D k points.',
+                    stacklevel=2,
+                )
+                return parameters, None
+        elif bsf.MODE() == 'CONST-E':
+            k1, k2 = np.meshgrid(bsf.K1(), bsf.K2(), indexing='ij')
+            parameters = BsfSampling(
+                name='SPRKKR BSF plane parameters',
+                parameters=Mesh(
+                    dimensionality=2, n_points=k1.size,
+                    grid=[bsf.NK1(), bsf.NK2()],
+                    points=np.stack([k1.ravel(), k2.ravel()], axis=-1),
+                ),
+            )
+            start = bsf.VECK_START()
+            start = np.zeros(3) if start is None else np.asarray(start)
+            points = (
+                start
+                + k1[..., None] * (np.asarray(bsf.VECK1()) - start)
+                + k2[..., None] * (np.asarray(bsf.VECK2()) - start)
+            ).reshape(-1, 3)
+        else:
+            raise ValueError(f'Unsupported BSF mode: {bsf.MODE()}')
+
+        # SPRKKR Cartesian coordinates use 2*pi/a; NOMAD uses fractional
+        # reciprocal coordinates. Both reciprocal bases contain 2*pi.
+        potential = self.output.potential
+        direct_basis = np.asarray(potential.atoms.cell) / (
+            potential.LATTICE.ALAT() * Bohr
+        )
+        points = points @ direct_basis.T
+        mesh = KMeshSettings(
+            n_points=len(points), dimensionality=3, points=points,
+        )
+        return parameters, mesh
+
+    def _path_points(self, bsf):
+        """Use the printed KA/KE endpoints and INDKDIR counts per segment."""
+        filename = getattr(self.output.output_file, 'name', self.output.output_file)
+        text = Path(filename).read_text()
+        labels = [''.join(str(label).split()) for label in bsf.LBLKDIR()]
+        ends = np.asarray(bsf.INDKDIR(), dtype=int)
+        if not len(ends) or len(labels) != len(ends) or ends[-1] != bsf.NK():
+            raise ValueError('BSF segment boundaries do not match its k-point count')
+        counts = np.diff(np.concatenate(([0], ends)))
+        if np.any(counts < 1):
+            raise ValueError('BSF path segments must contain at least one point')
+
+        pattern = re.compile(
+            r'^\s*([^\n(]+)\(([^()\n]+)\)\s*(?:\.\.\.|KE\s*=)'
+            r'\s*\(([^()\n]+)\)\s*$',
+            re.MULTILINE,
+        )
+        segments = []
+        for match in pattern.finditer(text):
+            label, start, end = match.groups()
+            expected = labels[len(segments)]
+            if expected:
+                if ''.join(label.split()) != expected:
+                    continue
+            elif not label.strip().startswith('k-dir'):
+                continue
+            start = np.fromstring(start.replace('D', 'E'), sep=' ')
+            end = np.fromstring(end.replace('D', 'E'), sep=' ')
+            if start.shape != (3,) or end.shape != (3,):
+                raise ValueError('A BSF path endpoint must have three coordinates')
+            segments.append(np.linspace(start, end, counts[len(segments)]))
+            if len(segments) == len(labels):
+                return np.concatenate(segments)
+        return None
+
+    def model_method(self):
+        method = super().model_method()
+        method.numerical_settings.append(self.sampling[0])
+        if self.sampling[1] is not None:
+            method.numerical_settings.append(KSpace(
+                name='SPRKKR BSF k points',
+                k_mesh=[self.sampling[1]],
+                reciprocal_lattice_vectors=(
+                    2 * np.pi * self.output.potential.atoms.cell.reciprocal()
+                    / ureg.angstrom
+                ),
+            ))
+        return method
 
     def outputs(self, system):
-        nomad = Outputs()
-        nomad.model_system_ref = system
-
         bsf = self.output.bsf
         mode = bsf.MODE()
-        keyword = bsf.KEYWORD()
-
+        out = Outputs(model_system_ref=system)
         if mode == 'EK-REL':
-            self._add_ekrel_sections(nomad, bsf, keyword)
+            energies = np.asarray(bsf.E()) * ureg.eV
         elif mode == 'CONST-E':
-            self._add_conste_sections(nomad, bsf, keyword)
-
-        return nomad
-
-    # ------------------------------------------------------------------
-    # EK-REL: A(E, k) — band-structure path
-    # ------------------------------------------------------------------
-
-    def _add_ekrel_sections(self, nomad, bsf, keyword):
-        energies_eV = bsf.E()          # shape (NE,), eV relative to Fermi
-        k_path = bsf.K()               # shape (NK,), dimensionless arc length
-
-        if keyword == 'BSF':
-            # spin-up and spin-down channels
-            for spin_channel, data in [(0, bsf.I_UP()), (1, bsf.I_DOWN())]:
-                # data shape: (NQ_EFF, NE, NK); sum over sites
-                nomad.electronic_greens_functions.append(
-                    self._ekrel_section(energies_eV, k_path,
-                                        data.sum(axis=0), spin_channel)
-                )
+            energies = np.array([bsf.ERYD()[0] - bsf.EFERMI()]) * ureg.Ry
         else:
-            # BSF-SPOL / BSF-SPN: spin-vector components + total
-            for label, data in [
-                ('total', bsf.I()),
-                ('x',     bsf.I_X()),
-                ('y',     bsf.I_Y()),
-                ('z',     bsf.I_Z()),
-            ]:
-                gf = self._ekrel_section(energies_eV, k_path,
-                                         data.sum(axis=0))
-                gf.label = label
-                nomad.electronic_greens_functions.append(gf)
+            raise ValueError(f'Unsupported BSF mode: {mode}')
 
-    def _ekrel_section(self, energies_eV, k_path, data_ne_nk,
-                       spin_channel=None):
-        """Build one ElectronicGreensFunction for EK-REL data.
-
-        Parameters
-        ----------
-        energies_eV : np.ndarray, shape (NE,)
-        k_path      : np.ndarray, shape (NK,), dimensionless
-        data_ne_nk  : np.ndarray, shape (NE, NK)
-        spin_channel: int or None
-        """
-        gf = ElectronicGreensFunction()
-        if spin_channel is not None:
-            gf.spin_channel = spin_channel
-
-        km = KMesh()
-        km.points = k_path
-        gf.k_mesh = km
-
-        freq = Frequency()
-        freq.points = energies_eV * ureg.eV
-        gf.real_frequency = freq
-
-        # Raw file values are in 1/Ry; normalise to 1/J via ureg
-        gf.value = data_ne_nk / ureg.Ry
-
-        return gf
-
-    # ------------------------------------------------------------------
-    # CONST-E: A(k1, k2) — constant-energy surface
-    # ------------------------------------------------------------------
-
-    def _add_conste_sections(self, nomad, bsf, keyword):
-        k1 = bsf.K1()   # shape (NK1,)
-        k2 = bsf.K2()   # shape (NK2,)
-
-        # Build a flat (NK1*NK2, 2) array of k-point coordinates
-        k1g, k2g = np.meshgrid(k1, k2, indexing='ij')
-        k_points = np.stack([k1g.ravel(), k2g.ravel()], axis=-1)
-
-        if keyword == 'BSF':
-            for spin_channel, data in [(0, bsf.I_UP()), (1, bsf.I_DOWN())]:
-                nomad.electronic_greens_functions.append(
-                    self._conste_section(k_points, data.sum(axis=0),
-                                         spin_channel)
-                )
+        if bsf.KEYWORD() == 'BSF':
+            channels = [(None, 0, bsf.I_UP()), (None, 1, bsf.I_DOWN())]
         else:
-            for label, data in [
-                ('total', bsf.I()),
-                ('x',     bsf.I_X()),
-                ('y',     bsf.I_Y()),
-                ('z',     bsf.I_Z()),
-            ]:
-                gf = self._conste_section(k_points, data.sum(axis=0))
+            channels = [
+                ('total', None, bsf.I()),
+                ('x', None, bsf.I_X()),
+                ('y', None, bsf.I_Y()),
+                ('z', None, bsf.I_Z()),
+            ]
+
+        for label, spin, values in channels:
+            gf = ElectronicGreensFunction(name='Bloch spectral function')
+            if label is not None:
                 gf.label = label
-                nomad.electronic_greens_functions.append(gf)
-
-    def _conste_section(self, k_points, data_nk1_nk2, spin_channel=None):
-        """Build one ElectronicGreensFunction for CONST-E data.
-
-        Parameters
-        ----------
-        k_points     : np.ndarray, shape (NK1*NK2, 2), dimensionless
-        data_nk1_nk2 : np.ndarray, shape (NK1, NK2)
-        spin_channel : int or None
-        """
-        gf = ElectronicGreensFunction()
-        if spin_channel is not None:
-            gf.spin_channel = spin_channel
-
-        km = KMesh()
-        km.points = k_points
-        gf.k_mesh = km
-
-        gf.value = data_nk1_nk2.ravel() / ureg.Ry
-
-        return gf
+            if spin is not None:
+                gf.spin_channel = spin
+            gf.k_mesh = KMesh(n_points=self.sampling[0].parameters.n_points)
+            if self.sampling[1] is not None:
+                # Quantity references are assigned the owning section.
+                gf.k_mesh.points = self.sampling[1]
+            gf.real_frequency = Frequency(n_points=len(energies), points=energies)
+            if mode == 'EK-REL':
+                data = np.asarray(values).sum(axis=0)
+            else:
+                data = np.asarray(values).sum(axis=0).ravel()
+            out.electronic_greens_functions.append(gf)
+            self._datasets.append((gf, 'value', data / ureg.Ry))
+        return out
 
 
-# Register the same class for the k-k plane variant
 SprkkrTaskParser._registry['bsfkk'] = SprkkrBsfParser

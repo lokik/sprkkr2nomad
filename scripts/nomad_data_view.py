@@ -11,6 +11,8 @@ Examples:
 
 Notes:
 - By default, outputs only the parsed archive `data` section.
+- HDF5 payloads are omitted; small dataset and axis summaries are retained.
+- Use --inline-hdf5 to expand HDF5 values into JSON arrays for inspection.
 - Use --archive to output the full archive (still stripped of metainfo keys).
 """
 
@@ -26,6 +28,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from nomad.parsing import parsers as nomad_parsers
+from sprkkr2nomad.indexing import to_index_dict
+from sprkkr2nomad.local_hdf5 import to_json_dict
 
 
 LOGGER = logging.getLogger("nomad_data_view")
@@ -117,7 +121,9 @@ def _write_json(target: OutputTarget, input_path: str, payload: Any, *, pretty: 
     out_file.write_text(json.dumps(payload, **dump_kwargs) + ("\n" if pretty else ""), encoding="utf-8")
 
 
-def parse_one(mainfile: str, *, full_archive: bool, drop_refs: bool) -> Any:
+def parse_one(
+    mainfile: str, *, full_archive: bool, drop_refs: bool, inline_hdf5: bool = False
+) -> Any:
     parser, mainfile_keys = nomad_parsers.match_parser(mainfile)
     if parser is None:
         raise ValueError(f"No NOMAD parser matched: {mainfile}")
@@ -127,10 +133,10 @@ def parse_one(mainfile: str, *, full_archive: bool, drop_refs: bool) -> Any:
     )
     archive = archives[0]
 
-    raw = (
-        archive.m_to_dict(with_meta=False, resolve_references=False)
-        if full_archive
-        else archive.data.m_to_dict(with_meta=False, resolve_references=False)
+    export = to_json_dict if inline_hdf5 else to_index_dict
+    raw = export(
+        archive if full_archive else archive.data,
+        with_meta=False, resolve_references=False,
     )
     return _strip_metainfo(raw, drop_refs=drop_refs)
 
@@ -141,6 +147,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default=None, help="Output path: '-' (stdout), a file, or a directory")
     ap.add_argument("--pretty", action="store_true", help="Pretty-print JSON")
     ap.add_argument("--archive", action="store_true", help="Output full archive instead of only archive.data")
+    ap.add_argument(
+        "--inline-hdf5", action="store_true",
+        help="Expand HDF5 payloads into JSON arrays (default: omit them for indexing)",
+    )
     ap.add_argument(
         "--keep-refs",
         action="store_true",
@@ -160,13 +170,15 @@ def main(argv: list[str] | None = None) -> int:
         combined: dict[str, Any] = {}
         for path in input_paths:
             combined[path] = parse_one(
-                path, full_archive=args.archive, drop_refs=(not args.keep_refs)
+                path, full_archive=args.archive, drop_refs=(not args.keep_refs),
+                inline_hdf5=args.inline_hdf5,
             )
         _write_json(target, input_paths[0], combined, pretty=args.pretty)
     else:
         for path in input_paths:
             payload = parse_one(
-                path, full_archive=args.archive, drop_refs=(not args.keep_refs)
+                path, full_archive=args.archive, drop_refs=(not args.keep_refs),
+                inline_hdf5=args.inline_hdf5,
             )
             _write_json(target, path, payload, pretty=args.pretty)
 

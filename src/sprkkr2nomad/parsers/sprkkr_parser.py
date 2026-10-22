@@ -28,4 +28,4 @@ class SprkkrParser(MatchingParser):
                     f'{task!r} ({mainfile})'
                 )
             return
-        archive.data = parser.simulation()
+        parser.parse(archive)

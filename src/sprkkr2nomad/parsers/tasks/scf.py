@@ -125,8 +125,7 @@ class SprkkrScfParser(SprkkrTaskParser, task_name='scf'):
                 ectop * ry_to_eV if ectop is not None else None
             )
 
-        # |ΔE_tot| between successive iterations (0 for the first)
-        delta_energies_total.append(0.0 * ureg.eV)
+        # N SCF energies define N - 1 changes between successive iterations.
         for e_prev, e_curr in zip(energies_total[:-1], energies_total[1:]):
             delta_energies_total.append(abs(e_curr - e_prev))
 

@@ -7,7 +7,7 @@ class SprkkrParserEntryPoint(ParserEntryPoint):
 
     def load(self):
         from .sprkkr_parser import SprkkrParser
-        return SprkkrParser(**self.dict())
+        return SprkkrParser(**self.model_dump())
 
 header="""          **************************************************************
           *                                                            *
