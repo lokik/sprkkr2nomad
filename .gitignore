@@ -2,3 +2,9 @@
 **.swp
 **.swo
 **.egg-info
+.venv/
+.venv-modern/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
