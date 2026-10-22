@@ -159,9 +159,9 @@ sections:
         type:
           type_kind: string
         enum:
-        - STANDARD-KKR
-        - TB-KKR
-        - LAYER-KKR
+        - STANDARD
+        - TB
+        - IMPURITY
   SprkkrPhagenPhagenEnergy:
     base_section: nomad.datamodel.metainfo.basesections.EntryData
     description: Auto-generated SPRKKR section 'ENERGY'
